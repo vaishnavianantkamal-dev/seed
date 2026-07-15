@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import Select from 'react-select';
+import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import axios from '../api/axios';
 
 const measureOptions = [{ value: 'caseKg', label: 'Case/Kg' }, { value: 'quantity', label: 'Quantity' }, { value: 'rate', label: 'Rate' }, { value: 'value', label: 'Value' }];
 const aggregationOptions = [{ value: 'sum', label: 'Sum' }, { value: 'avg', label: 'Avg' }, { value: 'count', label: 'Count' }, { value: 'min', label: 'Min' }, { value: 'max', label: 'Max' }];
 const rowFieldOptions = [{ value: 'year', label: 'Year' }, { value: 'month', label: 'Month' }, { value: 'territory', label: 'Territory' }, { value: 'division', label: 'Division' }, { value: 'itemGroup', label: 'Item Group' }, { value: 'item', label: 'Item' }, { value: 'status', label: 'Status' }];
+const sortOptions = [{ value: 'desc', label: 'Grand Total: High to Low' }, { value: 'asc', label: 'Grand Total: Low to High' }];
+
+// Validated categorical order — see dataviz skill references/palette.md. Fixed order, never cycled/reassigned.
+const PIE_COLORS = ['#2a78d6', '#008300', '#e87ba4', '#eda100', '#1baf7a', '#eb6834'];
+const PIE_SLICE_CAP = 6;
 
 export default function ExplorePage() {
   const [filters, setFilters] = useState({});
@@ -16,6 +22,7 @@ export default function ExplorePage() {
   const [colField, setColField] = useState('status');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   const fieldDefinitions = useMemo(() => [
     { key: 'year', label: 'Year', apiKey: 'years' },
@@ -60,6 +67,21 @@ export default function ExplorePage() {
   const setFilterValue = (key, values) => {
     setFilters((prev) => ({ ...prev, [key]: values.map((item) => item.value) }));
   };
+
+  const sortedRows = useMemo(() => {
+    const rows = pivot?.rows || [];
+    const sign = sortOrder === 'asc' ? 1 : -1;
+    return [...rows].sort((a, b) => sign * (a.total - b.total));
+  }, [pivot, sortOrder]);
+
+  const pieData = useMemo(() => {
+    const visible = sortedRows.slice(0, PIE_SLICE_CAP).map((row) => ({ name: row.label, value: row.total }));
+    const rest = sortedRows.slice(PIE_SLICE_CAP);
+    if (rest.length) {
+      visible.push({ name: 'Other', value: rest.reduce((sum, row) => sum + row.total, 0) });
+    }
+    return visible;
+  }, [sortedRows]);
 
   const resetFilters = () => {
     setFilters({});
@@ -108,6 +130,10 @@ export default function ExplorePage() {
               <label className="block text-sm font-medium">Columns</label>
               <Select options={[{ value: '', label: 'None' }, ...rowFieldOptions]} value={(rowFieldOptions.find((item) => item.value === colField) || { value: '', label: 'None' })} onChange={(value) => setColField(value.value)} />
             </div>
+            <div>
+              <label className="block text-sm font-medium">Sort</label>
+              <Select options={sortOptions} value={sortOptions.find((item) => item.value === sortOrder)} onChange={(value) => setSortOrder(value.value)} />
+            </div>
           </div>
           <div className="mt-6 rounded-xl border border-emerald-100 bg-emerald-50 p-3">
             <p className="text-sm text-slate-600">Matched rows: {pivot?.matchedRows || 0}</p>
@@ -123,7 +149,7 @@ export default function ExplorePage() {
                 </tr>
               </thead>
               <tbody>
-                {(pivot?.rows || []).map((row) => (
+                {sortedRows.map((row) => (
                   <tr key={row.label}>
                     <td className="border px-3 py-2 font-medium">{row.label}</td>
                     {pivot?.columns?.map((col) => (<td key={col} className="border px-3 py-2">{row.cells[col] ?? 0}</td>))}
@@ -133,6 +159,24 @@ export default function ExplorePage() {
               </tbody>
             </table>
           </div>
+          {pieData.length > 0 && (
+            <div className="mt-6">
+              <h3 className="font-semibold">{rowFieldOptions.find((item) => item.value === rowField)?.label} breakdown</h3>
+              <div className="mt-4 h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={70} outerRadius={110} paddingAngle={2}>
+                      {pieData.map((entry, index) => (
+                        <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="#ffffff" strokeWidth={2} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value) => value.toLocaleString()} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
