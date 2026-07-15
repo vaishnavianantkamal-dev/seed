@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    color-scheme: light;
+    font-family: "Outfit", sans-serif;
+    background-color: #f5f7f5;
+    color: #142013;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f7fbf7 0%, #eef6ef 100%);
+}
+
+* {
+    box-sizing: border-box;
+    font-family: "Outfit", sans-serif;
+}
